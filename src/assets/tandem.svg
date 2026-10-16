@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="gl" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#C4DEFF"/><stop offset="1" stop-color="#93C2FF"/>
+    </linearGradient>
+    <linearGradient id="gr" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6A97FF"/><stop offset="1" stop-color="#4170F2"/>
+    </linearGradient>
+    <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3344CC"/><stop offset="1" stop-color="#1F2B92"/>
+    </linearGradient>
+    <path id="A" d="M96,186 L300,150 Q328,145 328,173 L328,382 Q328,410 300,415 L96,451 Q68,456 68,428 L68,219 Q68,191 96,186 Z"/>
+    <path id="B" d="M416,96 L212,60 Q184,55 184,83 L184,292 Q184,320 212,325 L416,361 Q444,366 444,338 L444,129 Q444,101 416,96 Z"/>
+    <clipPath id="clipB"><use href="#B"/></clipPath>
+  </defs>
+  <!-- белая подложка; тонкая рамка, чтобы иконка не терялась на светлой панели задач -->
+  <rect x="4" y="4" width="504" height="504" rx="112" fill="#FFFFFF" stroke="#DCE3EE" stroke-width="8"/>
+  <g transform="translate(256 256) scale(0.86) translate(-256 -256)">
+    <use href="#A" fill="url(#gl)"/>
+    <use href="#B" fill="url(#gr)"/>
+    <use href="#A" fill="url(#gc)" clip-path="url(#clipB)"/>
+  </g>
+</svg>
