@@ -18,7 +18,6 @@
 
     <Icon Id="AppIcon" SourceFile="$(var.IconFile)" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
-    <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="DESKTOP_SHORTCUT" Value="1" Secure="yes" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
