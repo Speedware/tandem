@@ -108,6 +108,25 @@ TPM_RIGHTBUTTON = 0x2
 TPM_NONOTIFY = 0x80
 TPM_RETURNCMD = 0x100
 
+WM_HOTKEY = 0x0312
+MOD_ALT = 0x1
+MOD_CONTROL = 0x2
+MOD_SHIFT = 0x4
+MOD_WIN = 0x8
+MOD_NOREPEAT = 0x4000
+VK_SHIFT = 0x10
+VK_CONTROL = 0x11
+VK_MENU = 0x12
+VK_LWIN = 0x5B
+VK_RWIN = 0x5C
+VK_LSHIFT = 0xA0
+VK_RSHIFT = 0xA1
+VK_LCONTROL = 0xA2
+VK_RCONTROL = 0xA3
+VK_LMENU = 0xA4
+VK_RMENU = 0xA5
+MAPVK_VK_TO_CHAR = 2
+
 
 WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM)
 WNDENUMPROC = ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
@@ -263,6 +282,7 @@ DrawIconEx = _fn(
 
 GetMessageW = _fn(user32, "GetMessageW", wt.BOOL, P(wt.MSG), wt.HWND, wt.UINT, wt.UINT)
 PostMessageW = _fn(user32, "PostMessageW", wt.BOOL, wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM)
+SendMessageW = _fn(user32, "SendMessageW", LRESULT, wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM)
 PostQuitMessage = _fn(user32, "PostQuitMessage", None, ctypes.c_int)
 RegisterWindowMessageW = _fn(user32, "RegisterWindowMessageW", wt.UINT, wt.LPCWSTR)
 FindWindowW = _fn(user32, "FindWindowW", wt.HWND, wt.LPCWSTR, wt.LPCWSTR)
@@ -277,6 +297,10 @@ TrackPopupMenu = _fn(user32, "TrackPopupMenu", wt.BOOL, wt.HMENU, wt.UINT, ctype
 DestroyMenu = _fn(user32, "DestroyMenu", wt.BOOL, wt.HMENU)
 SetForegroundWindow = _fn(user32, "SetForegroundWindow", wt.BOOL, wt.HWND)
 GetCursorPos = _fn(user32, "GetCursorPos", wt.BOOL, P(wt.POINT))
+RegisterHotKey = _fn(user32, "RegisterHotKey", wt.BOOL, wt.HWND, ctypes.c_int, wt.UINT, wt.UINT)
+UnregisterHotKey = _fn(user32, "UnregisterHotKey", wt.BOOL, wt.HWND, ctypes.c_int)
+GetKeyState = _fn(user32, "GetKeyState", wt.SHORT, ctypes.c_int)
+MapVirtualKeyW = _fn(user32, "MapVirtualKeyW", wt.UINT, wt.UINT, wt.UINT)
 
 Shell_NotifyIconW = _fn(shell32, "Shell_NotifyIconW", wt.BOOL, wt.DWORD, P(NOTIFYICONDATAW))
 

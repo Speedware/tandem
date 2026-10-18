@@ -19,6 +19,7 @@ DEFAULTS = {
     "fps": 30,
     "hide_cursor": False,
     "autostart": False,
+    "hotkeys": None,
 }
 
 

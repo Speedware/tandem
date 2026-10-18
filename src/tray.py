@@ -4,7 +4,7 @@ import ctypes
 import logging
 import threading
 from ctypes import wintypes as wt
-from typing import Callable
+from typing import Callable, Dict, List, Optional, Tuple
 
 import winapi as w
 
@@ -14,6 +14,7 @@ CLASS_NAME = "TandemTray"
 WM_TRAY = w.WM_APP + 1
 WM_SHOW_REQUEST = w.WM_APP + 2
 WM_QUIT_REQUEST = w.WM_APP + 3
+WM_SET_HOTKEYS = w.WM_APP + 4
 
 CMD_OPEN, CMD_TOGGLE, CMD_EXIT = 1, 2, 3
 
@@ -48,6 +49,9 @@ class TrayIcon(threading.Thread):
         self._proc = w.WNDPROC(self._wndproc)
         self._taskbar_created = w.RegisterWindowMessageW("TaskbarCreated")
         self._ready = threading.Event()
+        self._hotkey_actions: Dict[int, str] = {}
+        self._pending_hotkeys: Dict[str, Optional[Tuple[int, int]]] = {}
+        self._failed_hotkeys: List[str] = []
 
 
     def set_tooltip(self, text: str) -> None:
@@ -64,6 +68,13 @@ class TrayIcon(threading.Thread):
         nid.szInfo = text[:255]
         nid.dwInfoFlags = w.NIIF_WARNING if warning else w.NIIF_INFO
         w.Shell_NotifyIconW(w.NIM_MODIFY, ctypes.byref(nid))
+
+    def set_hotkeys(self, hotkeys: Dict[str, Optional[Tuple[int, int]]]) -> List[str]:
+        if not self.hwnd:
+            return [action for action, hk in hotkeys.items() if hk]
+        self._pending_hotkeys = dict(hotkeys)
+        w.SendMessageW(self.hwnd, WM_SET_HOTKEYS, 0, 0)
+        return list(self._failed_hotkeys)
 
     def stop(self) -> None:
         if self.hwnd:
@@ -122,6 +133,22 @@ class TrayIcon(threading.Thread):
         nid = self._nid(w.NIF_MESSAGE | w.NIF_ICON | w.NIF_TIP)
         w.Shell_NotifyIconW(w.NIM_ADD, ctypes.byref(nid))
 
+    def _register_hotkeys(self) -> None:
+        for hotkey_id in self._hotkey_actions:
+            w.UnregisterHotKey(self.hwnd, hotkey_id)
+        self._hotkey_actions = {}
+        self._failed_hotkeys = []
+        for hotkey_id, (action, hotkey) in enumerate(self._pending_hotkeys.items(), start=1):
+            if not hotkey:
+                continue
+            mods, vk = hotkey
+            if w.RegisterHotKey(self.hwnd, hotkey_id, mods | w.MOD_NOREPEAT, vk):
+                self._hotkey_actions[hotkey_id] = action
+            else:
+                log.warning("Не удалось зарегистрировать сочетание для %s (код ошибки %s)",
+                            action, ctypes.get_last_error())
+                self._failed_hotkeys.append(action)
+
     def _show_menu(self) -> None:
         menu = w.CreatePopupMenu()
         w.AppendMenuW(menu, w.MF_STRING | w.MF_DEFAULT, CMD_OPEN, "Открыть Tandem")
@@ -158,10 +185,21 @@ class TrayIcon(threading.Thread):
             if msg == WM_QUIT_REQUEST:
                 self.on_event("exit")
                 return 0
+            if msg == WM_SET_HOTKEYS:
+                self._register_hotkeys()
+                return 0
+            if msg == w.WM_HOTKEY:
+                action = self._hotkey_actions.get(wparam)
+                if action:
+                    self.on_event("hotkey_" + action)
+                return 0
             if msg == self._taskbar_created and self._taskbar_created:
                 self._add()
                 return 0
             if msg == w.WM_CLOSE:
+                for hotkey_id in self._hotkey_actions:
+                    w.UnregisterHotKey(hwnd, hotkey_id)
+                self._hotkey_actions = {}
                 nid = self._nid(0)
                 w.Shell_NotifyIconW(w.NIM_DELETE, ctypes.byref(nid))
                 w.DestroyWindow(hwnd)

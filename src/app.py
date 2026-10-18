@@ -8,6 +8,7 @@ from tkinter import messagebox, ttk
 from typing import List, Optional
 
 import autostart
+import hotkeys
 import settings
 import system
 import winapi as w
@@ -35,6 +36,8 @@ class App:
         self.windows: List[system.WindowInfo] = []
         self.monitors: List[system.MonitorInfo] = []
         self._monitor_sig = None
+        self.hotkeys = hotkeys.from_settings(self.cfg.get("hotkeys"))
+        self._capturing: Optional[str] = None
 
         self.root = tk.Tk()
         self.root.title(TITLE)
@@ -49,6 +52,11 @@ class App:
         self.tray = TrayIcon(ICON_PATH, TITLE, self.tray_events.put)
         self.tray.start()
         self.tray.wait_ready()
+        failed = self._apply_hotkeys()
+        if failed:
+            names = ", ".join(hotkeys.format_hotkey(self.hotkeys[a]) for a in failed)
+            self.tray.notify(TITLE, f"Не удалось назначить сочетание {names}: "
+                                    "оно занято другой программой.", warning=True)
 
         try:
             autostart.migrate_legacy()
@@ -110,12 +118,29 @@ class App:
                         variable=self.var_autostart, command=self._on_autostart_changed
                         ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(0, 12))
 
+        keys = ttk.LabelFrame(frm, text="Горячие клавиши", padding=(10, 6))
+        keys.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(0, 12))
+        keys.columnconfigure(1, weight=1)
+        self.hotkey_vars = {}
+        self.hotkey_entries = {}
+        for row, (action, title) in enumerate(hotkeys.ACTIONS.items()):
+            ttk.Label(keys, text=f"{title}:").grid(row=row, column=0, sticky="w", pady=2)
+            var = tk.StringVar(value=hotkeys.format_hotkey(self.hotkeys[action]))
+            entry = ttk.Entry(keys, textvariable=var, state="readonly", width=32)
+            entry.grid(row=row, column=1, sticky="ew", padx=8, pady=2)
+            ttk.Button(keys, text="Изменить", command=lambda a=action: self._capture_hotkey(a)
+                       ).grid(row=row, column=2, pady=2)
+            ttk.Button(keys, text="Очистить", command=lambda a=action: self._set_hotkey(a, None)
+                       ).grid(row=row, column=3, padx=(4, 0), pady=2)
+            self.hotkey_vars[action] = var
+            self.hotkey_entries[action] = entry
+
         self.btn_toggle = ttk.Button(frm, text="Запустить зеркало", command=self.toggle_mirror)
-        self.btn_toggle.grid(row=6, column=0, columnspan=2, sticky="ew", ipady=6)
+        self.btn_toggle.grid(row=7, column=0, columnspan=2, sticky="ew", ipady=6)
 
         self.var_status = tk.StringVar(value="")
         ttk.Label(frm, textvariable=self.var_status, wraplength=560, foreground="#444"
-                  ).grid(row=7, column=0, columnspan=2, sticky="w", pady=(10, 0))
+                  ).grid(row=8, column=0, columnspan=2, sticky="w", pady=(10, 0))
 
     def _status(self, text: str) -> None:
         self.var_status.set(text)
@@ -181,8 +206,72 @@ class App:
             else:
                 self._show_window()
                 self.start_mirror()
+        elif event == "hotkey_toggle":
+            if self.mirror:
+                self.toggle_mirror()
+            else:
+                self.start_mirror()
+                if not self.mirror:
+                    self._show_window()
         elif event == "exit":
             self.quit()
+
+
+    def _apply_hotkeys(self) -> List[str]:
+        return self.tray.set_hotkeys(self.hotkeys)
+
+    def _capture_hotkey(self, action: str) -> None:
+        self._end_capture()
+        self._capturing = action
+        self.tray.set_hotkeys({})
+        entry = self.hotkey_entries[action]
+        self.hotkey_vars[action].set("Нажмите сочетание… (Esc — отмена)")
+        entry.bind("<KeyPress>", self._on_capture_key)
+        entry.bind("<FocusOut>", lambda _e: self._cancel_capture())
+        entry.focus_set()
+
+    def _on_capture_key(self, event) -> str:
+        action = self._capturing
+        if not action:
+            return "break"
+        vk = event.keycode
+        mods = hotkeys.pressed_modifiers()
+        if hotkeys.is_modifier(vk):
+            self.hotkey_vars[action].set(hotkeys.modifiers_text(mods) + "…")
+        elif vk == 0x1B and not mods:
+            self._cancel_capture()
+        elif not hotkeys.is_allowed((mods, vk)):
+            self.hotkey_vars[action].set("Добавьте Ctrl, Alt или Win… (Esc — отмена)")
+        else:
+            self._set_hotkey(action, (mods, vk))
+        return "break"
+
+    def _end_capture(self) -> bool:
+        action = self._capturing
+        if not action:
+            return False
+        self._capturing = None
+        entry = self.hotkey_entries[action]
+        entry.unbind("<KeyPress>")
+        entry.unbind("<FocusOut>")
+        self.hotkey_vars[action].set(hotkeys.format_hotkey(self.hotkeys[action]))
+        return True
+
+    def _cancel_capture(self) -> None:
+        if self._end_capture():
+            self._apply_hotkeys()
+
+    def _set_hotkey(self, action: str, hotkey: Optional[hotkeys.Hotkey]) -> None:
+        self._end_capture()
+        previous = self.hotkeys[action]
+        self.hotkeys[action] = hotkey
+        if action in self._apply_hotkeys():
+            self.hotkeys[action] = previous
+            self._apply_hotkeys()
+            messagebox.showerror(TITLE, f"Сочетание {hotkeys.format_hotkey(hotkey)} уже занято "
+                                        "другой программой или Windows.\n\nВыберите другое сочетание.")
+        self.hotkey_vars[action].set(hotkeys.format_hotkey(self.hotkeys[action]))
+        self._save()
 
 
     def refresh_windows(self) -> None:
@@ -289,6 +378,7 @@ class App:
         self.cfg["fps"] = self._fps()
         self.cfg["hide_cursor"] = bool(self.var_hide_cursor.get())
         self.cfg["autostart"] = bool(self.var_autostart.get())
+        self.cfg["hotkeys"] = hotkeys.to_settings(self.hotkeys)
         settings.save(self.cfg)
 
 
