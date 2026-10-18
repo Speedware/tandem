@@ -1,6 +1,6 @@
 ﻿param([ValidateSet('exe', 'msi')][string]$Target = 'exe')
 
-$AppVersion = '2.0.0'
+$AppVersion = '2.1.0'
 $WixVersion = '5.0.2'
 $ErrorActionPreference = 'Stop'
 

@@ -9,7 +9,7 @@
   #define OutDir "..\dist"
 #endif
 #ifndef AppVersion
-  #define AppVersion "2.0.0"
+  #define AppVersion "2.1.0"
 #endif
 #define AppId "Tandem.App"
 #define PyW "{app}\python\pythonw.exe"
